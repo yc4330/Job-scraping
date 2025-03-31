@@ -16,14 +16,15 @@ def scrape_jobs_ganji(csv_filename="jobs_ganji.csv"):
     file.close()
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=False, executable_path="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",args=["--mute-audio"])
+        # browser = p.chromium.launch(headless=False, executable_path="C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",args=["--mute-audio"])
         # browser = p.chromium.launch(headless=True, executable_path="C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",args=["--headless=new","--mute-audio"])
         # 尝试加载已保存的登录状态
         if os.path.exists(storage_state_file):
             context = browser.new_context(storage_state=storage_state_file)
             print("加载已保存的登录信息...")
             page = context.new_page()
-            page.goto("https://bj.ganji.com/job/pn3/?key="+str(search_key_boss)+"")
-            for page_index in range(2,30):
+            page.goto("https://bj.ganji.com/job/pn1/?key="+str(search_key_boss)+"")
+            for page_index in range(1,100):
                 # 等待页面加载完成
                 # page.wait_for_selector('.position-card')
 
@@ -33,23 +34,12 @@ def scrape_jobs_ganji(csv_filename="jobs_ganji.csv"):
                     jobs = page.query_selector_all('.position-card')
                     if len(jobs)>0:
                         break
+                time.sleep(10)
                 jobs = jobs[0].query_selector_all('div[class="dataCollectionCls"]')
                 job_data = []
 
                 for job_biaoqian in jobs:
                     job_info_text=''
-                    detail_url=job_biaoqian.query_selector("a").get_attribute("href")
-                    new_page = context.new_page()
-                    new_page.goto(detail_url)
-                    while True:
-                        pass
-                        try:
-                            new_page.wait_for_selector('p[class="detail-position-require"]')
-                            job_info_text = new_page.query_selector('p[class="detail-position-require"]').inner_text()
-                            break
-                        except Exception as e:
-                            pass
-                    new_page.close()
                     # 提取文本内容
                     job_name_text = job_biaoqian.query_selector('li[class="ibox-title"]').inner_text()
                     job_area_text = job_biaoqian.query_selector('li[class="ibox-address"]').inner_text().split("｜")[0]
@@ -68,6 +58,17 @@ def scrape_jobs_ganji(csv_filename="jobs_ganji.csv"):
                         else:
                             if job_card_footer_text_div.inner_text()!="广告" and job_card_footer_text_div.get_attribute("style")!="display:none;":
                                 job_card_footer_text=job_card_footer_text+job_card_footer_text_div.inner_text()+'|'
+                    detail_url=job_biaoqian.query_selector("a").get_attribute("href")
+                    new_page = context.new_page()
+                    new_page.goto(detail_url)
+                    while True:
+                        pass
+                        try:
+                            new_page.wait_for_selector('p[class="detail-position-require"]')
+                            job_info_text = new_page.query_selector('p[class="detail-position-require"]').inner_text()
+                            break
+                        except Exception as e:
+                            pass
                     company_tag_list_text=''
 
                     # 其他字段
@@ -76,6 +77,32 @@ def scrape_jobs_ganji(csv_filename="jobs_ganji.csv"):
                     publish_time = ''
                     scrape_time = datetime.now().strftime('%Y/%m/%d %H:%M:%S')
 
+                    liulanrenshu=''
+                    shenqingrenshu=''
+                    zhaopinrenshu=''
+                    gongsirenshu=''
+                    xuelixianzhi=''
+                    jingyanxianzhi=''
+                    gongzuodizhi=''
+                    zhiweimiaoshu=''
+                    gongsijieshao=''
+                    gongsihangye=''
+                    renzhengleibie=''
+                    gongsizhaopinzhiweizongshu=''
+                    gongsileibie=''
+                    try:
+                        jingyanxianzhi=new_page.query_selector_all('p[class="detail-position-require"]')[0].text_content().split(' · ')[0]
+                        xuelixianzhi=new_page.query_selector_all('p[class="detail-position-require"]')[0].text_content().split(' · ')[1]
+                        zhaopinrenshu=new_page.query_selector_all('p[class="detail-position-require"]')[0].text_content().split(' · ')[2]
+                        gongzuodizhi=new_page.query_selector_all('p[class="detail-position-address"]')[0].text_content()
+                        zhiweimiaoshu=new_page.query_selector_all('p[class="detail-desc-position"]')[0].text_content()
+                        gongsijieshao=new_page.query_selector_all('p[class="detail-desc-company"]')[0].text_content()
+                        gongsihangye=new_page.query_selector_all('p[class="detail-company-content-type"]')[0].text_content()
+                        gongsirenshu=new_page.query_selector_all('p[class="detail-company-content-type"]')[1].text_content()
+                        renzhengleibie=new_page.query_selector_all('p[class="detail-company-content-type-auth"]')[0].text_content()
+                    except Exception as e:
+                        pass
+                    new_page.close()
                     # 将数据添加到列表中，按照指定顺序
                     job_data.append([
                         job_area_text,  # 具体地点
@@ -90,13 +117,51 @@ def scrape_jobs_ganji(csv_filename="jobs_ganji.csv"):
                         is_vip,  # 会员商家
                         publish_time,  # 发布时间
                         scrape_time,
-                        '赶集'
+                        '赶集',
+                        liulanrenshu,
+                        shenqingrenshu,
+                        zhaopinrenshu,
+                        gongsirenshu,
+                        xuelixianzhi,
+                        jingyanxianzhi,
+                        gongzuodizhi,
+                        zhiweimiaoshu,
+                        gongsijieshao,
+                        gongsihangye,
+                        renzhengleibie,
+                        gongsizhaopinzhiweizongshu,
+                        gongsileibie
                     ])
                 print("赶集抓取到数据"+str(len(job_data))+"条")
 
                 # 定义字段顺序
                 columns = [
-                    '具体地点', '职位名称', '工资', '福利tag', '公司名称', '公司标签', '其他标签', '岗位要求', '是否为推广', '会员商家', '发布时间', '抓取时间', '平台'
+                    '具体地点',
+                    '职位名称',
+                    '工资',
+                    '福利tag',
+                    '公司名称',
+                    '公司标签',
+                    '其他标签',
+                    '岗位要求',
+                    '是否为推广',
+                    '会员商家',
+                    '发布时间',
+                    '抓取时间',
+                    '平台',
+                    '浏览人数',
+                    '申请人数',
+                    '招聘人数',
+                    '公司人数',
+                    '学历限制',
+                    '经验限制',
+                    '工作地址',
+                    '职位描述',
+                    '公司介绍',
+                    '公司行业',
+                    '认证类别',
+                    '公司招聘职位总数',
+                    '公司类别',
                 ]
                 # 将数据保存到CSV文件
                 df = pd.DataFrame(job_data, columns=columns)
@@ -119,3 +184,6 @@ def scrape_jobs_ganji(csv_filename="jobs_ganji.csv"):
                     page.query_selector_all('a.button')[page_index].click()
         # 关闭浏览器
         browser.close()
+
+if __name__ == '__main__':
+    scrape_jobs_ganji()

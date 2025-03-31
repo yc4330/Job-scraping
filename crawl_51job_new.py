@@ -8,7 +8,7 @@ import json
 
 storage_state_file = "account.json"
 
-def scrape_jobs_dianzhang(filename="jobs_店长.csv"):
+def scrape_jobs_51job(csv_filename="jobs_51job.csv"):
     file = open('搜索关键词.txt', 'r', encoding='utf-8')
     # 读取文件内容
     search_key_boss = file.read()
@@ -16,64 +16,71 @@ def scrape_jobs_dianzhang(filename="jobs_店长.csv"):
     file.close()
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=False, executable_path="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",args=["--mute-audio"])
+        # browser = p.chromium.launch(headless=True, executable_path="C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",args=["--headless=new","--mute-audio"])
         # browser = p.chromium.launch(headless=False, executable_path="C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",args=["--mute-audio"])
         # 尝试加载已保存的登录状态
         if os.path.exists(storage_state_file):
             context = browser.new_context(storage_state=storage_state_file)
             print("加载已保存的登录信息...")
             page = context.new_page()
-            for page_index in range(1,11):
-                page.goto("https://www.dianzhangzhipin.com/joblist/?cityCode=7&query="+str(search_key_boss)+"&page="+str(page_index))
+            page.goto("https://we.51job.com/pc/search?jobArea=010000&keyword="+str(search_key_boss)+"")
+            for page_index in range(1,50):
+                nolist = page.query_selector_all('div[class="j_nolist"]')
+                if len(nolist)>0:
+                    break
                 # 等待页面加载完成
-                page.wait_for_selector('.job-list')
+                # page.wait_for_selector('.joblist')
 
                 # 获取所有职位信息
-                jobs = page.query_selector_all('.job-list')  # 替换为实际的职位卡片选择器
-                jobs = jobs[0].query_selector_all('li')
+                while True:
+                    pass
+                    joblists = page.query_selector_all('.joblist')  # 替换为实际的职位卡片选择器
+                    if len(joblists)>0:
+                        break
+                while True:
+                    pass
+                    jobs = joblists[0].query_selector_all('div[sensorsname="JobShortExposure"]')
+                    if len(jobs)>0:
+                        break
                 job_data = []
 
                 for job_biaoqian in jobs:
-                    # 提取文本内容
                     try:
-                        job_name_text = job_biaoqian.query_selector('div[class="job-title"]').inner_text()
-                        salary_text = job_biaoqian.query_selector('span[class="red"]').inner_text()
-                        company_name_text = job_biaoqian.query_selector('a[class="info-company"]').inner_text()
+                        job = json.loads(job_biaoqian.get_attribute("sensorsdata"))
+                        jobId = job["jobId"]
+                        job_name_text = job["jobTitle"]
+                        job_area_text = job["jobArea"]
+                        salary_text = job["jobSalary"]
+                        company_name_text = job_biaoqian.query_selector('a[class="cname text-cut"]').get_attribute("title")
                         info_desc_text=''
+                        job_info_text=''
                         job_card_footer_text=''
-                        is_promoted = ''
+                        if job_biaoqian.query_selector('div[class="tags"]'):
+                            job_card_footer_text_divs = job_biaoqian.query_selector('div[class="tags"]').query_selector_all('div')
+                        else:
+                            job_card_footer_text_divs=''
+                        for job_card_footer_text_div in job_card_footer_text_divs:
+                            job_card_footer_text=job_card_footer_text+job_card_footer_text_div.inner_text()+'|'
                         company_tag_list_text=''
-
+                        company_tag_list_text_divs=job_biaoqian.query_selector_all('span[class="dc text-cut"]')+job_biaoqian.query_selector_all('span[class="dc shrink-0"]')
+                        for company_tag_list_text_div in company_tag_list_text_divs:
+                            company_tag_list_text += company_tag_list_text_div.inner_text()+'|'
                         # 其他字段
                         other_tags = ''
+                        is_promoted = ''
                         is_vip = ''
                         publish_time = ''
                         scrape_time = datetime.now().strftime('%Y/%m/%d %H:%M:%S')
-                        job_info_text=''
-                        detail_url="https://www.dianzhangzhipin.com"+job_biaoqian.query_selector("a").get_attribute("href")
-                        new_page = context.new_page()
-                        new_page.goto(detail_url)
-                        new_page.wait_for_selector('p[class="other"]')#job-tags
-                        job_info_str = new_page.query_selector('p[class="other"]').inner_text()
-                        job_info_detail=job_info_str.split("经验要求：")[1]
-                        jingyanxianzhi=job_info_detail.split(" 学历要求：")[0]
-                        xuelixianzhi=job_info_detail.split(" 学历要求：")[1].split("招")[0]
-                        zhaopinrenshu=''
-                        if len(job_info_detail.split(" 学历要求：")[1].split("招"))>1:
-                            zhaopinrenshu=job_info_detail.split(" 学历要求：")[1].split("招")[1]
-                        zhiweimiaoshu=new_page.query_selector('div[class="job-sec"]').inner_text()
-                        gongsijieshao=''
-                        if new_page.query_selector('div[class="store-sec"]'):
-                            gongsijieshao=new_page.query_selector('div[class="store-sec"]').query_selector('div').inner_text()
-                        gongzuodizhi=new_page.query_selector('div[class="address-text"]').inner_text()
-                        gongsihangye=new_page.query_selector_all('p[class="company-row"]')[1].inner_text()[5:]
-                        gongsirenshu=new_page.query_selector_all('p[class="company-row"]')[2].inner_text()[5:]
-                        job_area_text=job_info_str.split("经验要求：")[0]
-                        job_info_text=job_info_str.split(job_area_text)[1].split("招")[0]
-                        job_card_footer_spans=new_page.query_selector('div[class="job-tags"]').query_selector_all('span')
-                        for job_card_footer_span in job_card_footer_spans:
-                            job_card_footer_text+=job_card_footer_span.inner_text()+'|'
-                        # pdb.set_trace()
-                        new_page.close()
+                        liulanrenshu=''
+                        if len(job_biaoqian.query_selector_all('span[class="tip shrink-0"]'))>0:
+                            liulanrenshu=job_biaoqian.query_selector_all('span[class="tip shrink-0"]')[-1].text_content()
+                        zhaopinrenshu=job_biaoqian.query_selector_all('span[class="dc shrink-0"]')[-1].text_content()
+                        xuelixianzhi=job["jobDegree"]
+                        jingyanxianzhi=job["jobYear"]
+                        gongzuodizhi=job_area_text
+                        if len(job_biaoqian.query_selector_all('span[class="dc text-cut"]'))>0:
+                            gongsihangye=job_biaoqian.query_selector_all('span[class="dc text-cut"]')[-1].text_content()
+                        # new_page.close()
 
                         # 将数据添加到列表中，按照指定顺序
                         job_data.append([
@@ -89,17 +96,17 @@ def scrape_jobs_dianzhang(filename="jobs_店长.csv"):
                             is_vip,  # 会员商家
                             publish_time,  # 发布时间
                             scrape_time,
-                            '店长',
-                            '',
+                            '51job',
+                            liulanrenshu,
                             '',
                             zhaopinrenshu,
-                            gongsirenshu,
+                            '',
                             xuelixianzhi,
                             jingyanxianzhi,
                             gongzuodizhi,
-                            zhiweimiaoshu,
-                            gongsijieshao,
                             '',
+                            '',
+                            gongsihangye,
                             '',
                             '',
                             ''
@@ -136,8 +143,7 @@ def scrape_jobs_dianzhang(filename="jobs_店长.csv"):
                     '公司招聘职位总数',
                     '公司类别',
                 ]
-                print("店长抓取到数据"+str(len(job_data))+"条")
-                csv_filename=filename
+                print("51job抓取到数据"+str(len(job_data))+"条")
                 # 将数据保存到CSV文件
                 df = pd.DataFrame(job_data, columns=columns)
 
@@ -153,8 +159,12 @@ def scrape_jobs_dianzhang(filename="jobs_店长.csv"):
                 else:
                     # 如果文件不存在，则创建新文件并写入表头
                     df.to_csv(csv_filename, index=False, encoding='utf-8-sig')
+                if page_index>4:
+                    page.query_selector_all('li.number')[4].click()
+                else:
+                    page.query_selector_all('li.number')[page_index].click()
         # 关闭浏览器
         browser.close()
 
 if __name__ == '__main__':
-    scrape_jobs_dianzhang()
+    scrape_jobs_51job()

@@ -6,25 +6,25 @@ import pdb
 import time
 import json
 
-import crawl_51job
-import crawl_yupao
-import crawl_ganji
-import crawl_58
-import crawl_boss
-import crawl_dianzhang
+import crawl_51job_new
+import crawl_yupao_new
+import crawl_ganji_new
+import crawl_58_new
+import crawl_boss_new
+import crawl_dianzhang_new
 
 # print("开始抓取51job")
-# crawl_51job.scrape_jobs_51job('jobs.csv')
+# crawl_51job_new.scrape_jobs_51job('51_jobs.csv')
 # print("开始抓取yupao")
-# crawl_yupao.scrape_jobs_yupao()
+# crawl_yupao_new.scrape_jobs_yupao()
 # print("开始抓取ganji")
-# crawl_ganji.scrape_jobs_ganji('jobs.csv')
+# crawl_ganji_new.scrape_jobs_ganji('ganji_jobs_newnew.csv')
 # print("开始抓取58")
-# crawl_58.scrape_jobs_58('jobs.csv')
+# crawl_58_new.scrape_jobs_58('58_jobs_newnew.csv')
 # print("开始抓取boss")
-# crawl_boss.scrape_jobs_boss('jobs.csv')
+# crawl_boss_new.scrape_jobs_boss('boss_jobs_newnew.csv')
 print("开始抓取dianzhang")
-crawl_dianzhang.scrape_jobs_dianzhang('jobs.csv')
+crawl_dianzhang_new.scrape_jobs_dianzhang('dianzhang_jobs_newnew.csv')
 
 import csv
 
