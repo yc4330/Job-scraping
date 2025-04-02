@@ -8,6 +8,7 @@ import os
 import json
 import re
 from DrissionPage import ChromiumPage, ChromiumOptions
+import pandas as pd
 
 def get_wlt(uids):
     # 定义URL和请求头
@@ -48,7 +49,7 @@ def get_page_content(url):
         print(f"请求失败，状态码: {response.status_code}")
         return None
 
-def parse_page(html_content):
+def parse_page(html_content, past_data, target_num):
     co = ChromiumOptions()
     page = ChromiumPage(co)
     if html_content is None:
@@ -60,6 +61,9 @@ def parse_page(html_content):
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     uids=[]
     print("抓取到数据:"+str(len(job_items))+"条")
+    
+    global scraped_num     # track scraped number
+
     if len(job_items)==0:
         return []
     for item in job_items:
@@ -132,6 +136,18 @@ def parse_page(html_content):
         else:
             modified_time = ''
         huiyuan_shangjia=""
+
+        # 验证是否重复
+        # 通过以上信息
+        if len(past_data[(past_data['职位名称'] == job_title) &
+                                     (past_data['具体地点'] == location) & 
+                                     (past_data['工资'] == salary) &
+                                     (past_data['公司名称'] == company_name) &
+                                     (past_data['其他标签'] == other_tags) &
+                                     (past_data['岗位要求'] == job_requirements) &
+                                     (past_data['公司标签'] == company_tag)]) >0:
+            print(f"duplicated {job_title}, skipped...")
+            continue
 
         detail_url=item.find('div', class_='job_name clearfix').find('a').get('href')
         page.get(detail_url)
@@ -235,6 +251,10 @@ def parse_page(html_content):
             '公司类别',
         ]
 
+        scraped_num+=1
+        if scraped_num >= target_num:
+            break
+
     wtls=get_wlt(uids)
     for wlt_i in range(len(data)):
         data[wlt_i][9]=wtls[uids[wlt_i]]
@@ -245,7 +265,7 @@ def parse_page(html_content):
             data[wlt_i][9]=""
     return data
 
-def save_to_csv(data, filename='jobs_58.csv'):
+def save_to_csv(data, filename):
     headers = [
         '具体地点',
         '职位名称',
@@ -297,7 +317,7 @@ def save_to_csv(data, filename='jobs_58.csv'):
         writer.writerow(headers)
         writer.writerows(deduplicated_data)
 
-def read_file(file_path='爬取到多少页_58.txt'):
+def read_file(file_path):
     try:
         with open(file_path, 'r', encoding='utf-8') as file:
             # 读取文件中的内容
@@ -309,20 +329,42 @@ def read_file(file_path='爬取到多少页_58.txt'):
         print(f"文件 {file_path} 的内容无效。")
         return 0  # 如果文件内容不是数字，返回0
 
-def scrape_jobs_58(filename='jobs_58.csv'):
-    page_count=read_file()
-    page_count=int(page_count.split("页")[0])
+def scrape_jobs_58(target_num):
+    # page_count=read_file()
+    # page_count=int(page_count.split("页")[0])
     search_key=read_file('搜索关键词.txt')
-    for url_index in range(1,page_count+1):
-        print("当前爬取到"+str(url_index)+"页")
+    
+    # 用日期命名
+    today_date = datetime.now().strftime("%m%d")
+    csv_filename=f"new_data/jobs_58_{today_date}_3.csv"
+
+    url_index = 1       # track page number
+    
+    # 微去重
+    past_data = pd.read_csv("merged_jobs_deduplicate_new.csv") # dir of all past data to deduplicate
+    past_data = past_data[past_data['平台'] == "58"]
+
+    global scraped_num     # track scraped number
+
+    while scraped_num < target_num:
+        print(f"当前页面{url_index}")
+    # for url_index in range(1,2):
+        # print("当前爬取到"+str(url_index)+"页")
         if url_index==1:
             url = 'https://bj.58.com/pugongjg/?key='+str(search_key)+'&classpolicy=strategy%2Cuuid_4b48dfe2ca954a1aa7a36aad27d906a3%2Cdisplocalid_1%2Cfrom_413249%2Cto_jump%2Ctradeline_job%2Cclassify_C&search_uuid=4b48dfe2ca954a1aa7a36aad27d906a3&final=1'
         else:
             url = 'https://bj.58.com/pugongjg/pn'+str(url_index)+'/?key='+str(search_key)+'&classpolicy=strategy%2Cuuid_4b48dfe2ca954a1aa7a36aad27d906a3%2Cdisplocalid_1%2Cfrom_413249%2Cto_jump%2Ctradeline_job%2Cclassify_C&search_uuid=4b48dfe2ca954a1aa7a36aad27d906a3&final=1'
         html_content = get_page_content(url)
-        parsed_data = parse_page(html_content)
-        save_to_csv(parsed_data,filename)
-    print("抓取完成，数据保存到jobs.csv")
+        parsed_data = parse_page(html_content, past_data, target_num)
+        save_to_csv(parsed_data,csv_filename)
+
+        if scraped_num >= target_num:
+            break
+
+        url_index += 1  # next page
+    print(f"58 共抓取到数据{scraped_num}条")
+
+scraped_num = 0
 
 if __name__ == '__main__':
-    scrape_jobs_58()
+    scrape_jobs_58(2000)

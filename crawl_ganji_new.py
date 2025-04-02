@@ -8,12 +8,24 @@ import json
 
 storage_state_file = "account.json"
 
-def scrape_jobs_ganji(csv_filename="jobs_ganji.csv"):
+def scrape_jobs_ganji(target_num):
+
+    # 用日期命名
+    today_date = datetime.now().strftime("%m%d")
+    csv_filename=f"new_data/jobs_ganji_{today_date}.csv"
+
     file = open('搜索关键词.txt', 'r', encoding='utf-8')
     # 读取文件内容
     search_key_boss = file.read()
     # 关闭文件
     file.close()
+
+    scraped_num = 0     # track data scraped
+
+    # 微去重
+    past_data = pd.read_csv("merged_jobs_deduplicate_new.csv") # dir of all past data to deduplicate
+    past_data = past_data[past_data['平台'] == "赶集"]
+
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=False, executable_path="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",args=["--mute-audio"])
         # browser = p.chromium.launch(headless=False, executable_path="C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",args=["--mute-audio"])
@@ -24,7 +36,10 @@ def scrape_jobs_ganji(csv_filename="jobs_ganji.csv"):
             print("加载已保存的登录信息...")
             page = context.new_page()
             page.goto("https://bj.ganji.com/job/pn1/?key="+str(search_key_boss)+"")
-            for page_index in range(1,100):
+
+            # for page_index in range(1,2):
+            page_index = 1  # track page index to change page
+            while scraped_num < target_num:     # track scraped number
                 # 等待页面加载完成
                 # page.wait_for_selector('.position-card')
 
@@ -42,6 +57,13 @@ def scrape_jobs_ganji(csv_filename="jobs_ganji.csv"):
                     job_info_text=''
                     # 提取文本内容
                     job_name_text = job_biaoqian.query_selector('li[class="ibox-title"]').inner_text()
+
+                    # 验证是否重复
+                    # 通过job_name
+                    if len(past_data[past_data['职位名称'] == job_name_text]) >0:
+                        print(f"duplicated {job_name_text}, skipped...")
+                        continue
+
                     job_area_text = job_biaoqian.query_selector('li[class="ibox-address"]').inner_text().split("｜")[0]
                     salary_text = job_biaoqian.query_selector('li[class="ibox-salary"]').inner_text()
                     company_name_text = job_biaoqian.query_selector('li[class="ibox-enterprise"]').inner_text()
@@ -132,7 +154,10 @@ def scrape_jobs_ganji(csv_filename="jobs_ganji.csv"):
                         gongsizhaopinzhiweizongshu,
                         gongsileibie
                     ])
-                print("赶集抓取到数据"+str(len(job_data))+"条")
+
+                    scraped_num+=1      # track number scraped
+                    if scraped_num >= target_num:
+                        break
 
                 # 定义字段顺序
                 columns = [
@@ -163,6 +188,11 @@ def scrape_jobs_ganji(csv_filename="jobs_ganji.csv"):
                     '公司招聘职位总数',
                     '公司类别',
                 ]
+
+                print("赶集抓取到数据"+str(len(job_data))+"条")
+
+                # scraped_num += len(job_data)    # track scraped number
+
                 # 将数据保存到CSV文件
                 df = pd.DataFrame(job_data, columns=columns)
 
@@ -182,8 +212,12 @@ def scrape_jobs_ganji(csv_filename="jobs_ganji.csv"):
                     page.query_selector_all('a.button')[4].click()
                 else:
                     page.query_selector_all('a.button')[page_index].click()
+
+                page_index+=1      # track page index to change page
+
+        print("赶集 共抓取到数据"+scraped_num+"条")
         # 关闭浏览器
         browser.close()
 
 if __name__ == '__main__':
-    scrape_jobs_ganji()
+    scrape_jobs_ganji(1000)       # input: how many data entires to collect

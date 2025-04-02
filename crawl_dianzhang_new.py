@@ -8,12 +8,24 @@ import json
 
 storage_state_file = "account.json"
 
-def scrape_jobs_dianzhang(filename="jobs_店长.csv"):
+def scrape_jobs_dianzhang(target_num):
+
+    # 用日期命名
+    today_date = datetime.now().strftime("%m%d")
+    csv_filename=f"new_data/jobs_店长_{today_date}.csv"
+
     file = open('搜索关键词.txt', 'r', encoding='utf-8')
     # 读取文件内容
     search_key_boss = file.read()
     # 关闭文件
     file.close()
+
+    scraped_num = 0     # track data scraped
+
+    # 微去重
+    past_data = pd.read_csv("merged_jobs_deduplicate_new.csv") # dir of all past data to deduplicate
+    past_data = past_data[past_data['平台'] == "店长"]
+
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=False, executable_path="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",args=["--mute-audio"])
         # browser = p.chromium.launch(headless=False, executable_path="C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",args=["--mute-audio"])
@@ -22,7 +34,11 @@ def scrape_jobs_dianzhang(filename="jobs_店长.csv"):
             context = browser.new_context(storage_state=storage_state_file)
             print("加载已保存的登录信息...")
             page = context.new_page()
-            for page_index in range(1,11):
+
+            page_index = 1      # track page index to change page
+
+            # for page_index in range(1,2):
+            while scraped_num < target_num:
                 page.goto("https://www.dianzhangzhipin.com/joblist/?cityCode=7&query="+str(search_key_boss)+"&page="+str(page_index))
                 # 等待页面加载完成
                 page.wait_for_selector('.job-list')
@@ -36,6 +52,13 @@ def scrape_jobs_dianzhang(filename="jobs_店长.csv"):
                     # 提取文本内容
                     try:
                         job_name_text = job_biaoqian.query_selector('div[class="job-title"]').inner_text()
+
+                        # 验证是否重复
+                        # 通过job_name
+                        if len(past_data[past_data['职位名称'] == job_name_text]) >0:
+                            print(f"duplicated {job_name_text}, skipped...")
+                            continue
+
                         salary_text = job_biaoqian.query_selector('span[class="red"]').inner_text()
                         company_name_text = job_biaoqian.query_selector('a[class="info-company"]').inner_text()
                         info_desc_text=''
@@ -104,6 +127,11 @@ def scrape_jobs_dianzhang(filename="jobs_店长.csv"):
                             '',
                             ''
                         ])
+
+                        scraped_num+=1      # track scraped number
+                        if scraped_num >= target_num:
+                            break
+
                     except Exception as e:
                         pass
 
@@ -137,7 +165,7 @@ def scrape_jobs_dianzhang(filename="jobs_店长.csv"):
                     '公司类别',
                 ]
                 print("店长抓取到数据"+str(len(job_data))+"条")
-                csv_filename=filename
+                
                 # 将数据保存到CSV文件
                 df = pd.DataFrame(job_data, columns=columns)
 
@@ -153,8 +181,13 @@ def scrape_jobs_dianzhang(filename="jobs_店长.csv"):
                 else:
                     # 如果文件不存在，则创建新文件并写入表头
                     df.to_csv(csv_filename, index=False, encoding='utf-8-sig')
+                
+                page_index +=1  # next page
+
+        print(f"店长 共抓取到数据{scraped_num}条")
+
         # 关闭浏览器
         browser.close()
 
 if __name__ == '__main__':
-    scrape_jobs_dianzhang()
+    scrape_jobs_dianzhang(30)

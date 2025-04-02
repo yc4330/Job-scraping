@@ -7,12 +7,24 @@ import time
 
 storage_state_file = "account.json"
 
-def scrape_jobs_boss(filename='jobs_boss.csv'):
+def scrape_jobs_boss(target_num):
+
+    # 用日期命名
+    today_date = datetime.now().strftime("%m%d")
+    csv_filename=f"new_data/jobs_boss_{today_date}.csv"
+
     file = open('搜索关键词.txt', 'r', encoding='utf-8')
     # 读取文件内容
     search_key_boss = file.read()
     # 关闭文件
     file.close()
+
+    scraped_num = 0     # track data scraped
+
+    # 微去重
+    past_data = pd.read_csv("merged_jobs_deduplicate_new.csv") # dir of all past data to deduplicate
+    past_data = past_data[past_data['平台'] == "boss"]
+
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=False, executable_path="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",args=["--mute-audio"])
         # browser = p.chromium.launch(headless=False, executable_path="C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",args=["--mute-audio"])
@@ -23,7 +35,10 @@ def scrape_jobs_boss(filename='jobs_boss.csv'):
             page = context.new_page()
             page.goto("https://www.zhipin.com/web/geek/job?query="+str(search_key_boss)+"&city=101010100&page=1")
             time.sleep(3)
-            while True:
+            # while True:
+            # for page_index in range(1,2):
+            while scraped_num < target_num:
+
                 # 等待页面加载完成
                 # page.wait_for_selector('.job-name')
 
@@ -58,6 +73,18 @@ def scrape_jobs_boss(filename='jobs_boss.csv'):
                     job_card_footer_text = job_card_footer.inner_text() if job_card_footer else ''
                     company_tag_list_text = '|'.join([li.inner_text() for li in company_tag_list.query_selector_all('li')]) if company_tag_list else ''
 
+
+                    # 验证是否重复
+                    # 通过以上信息
+                    if len(past_data[(past_data['职位名称'] == job_name_text) &
+                                     (past_data['具体地点'] == job_area_text) & 
+                                     (past_data['工资'] == salary_text) &
+                                     (past_data['公司名称'] == company_name_text) &
+                                     (past_data['其他标签'] == info_desc_text) &
+                                     (past_data['岗位要求'] == job_info_text) &
+                                     (past_data['公司标签'] == company_tag_list_text)]) >0:
+                        print(f"duplicated {job_name_text}, skipped...")
+                        continue
                     new_page = context.new_page()
                     new_page.goto("https://www.zhipin.com"+job.query_selector_all('a[class="job-card-left"]')[0].get_attribute('href'))
                     # 其他字段
@@ -153,29 +180,37 @@ def scrape_jobs_boss(filename='jobs_boss.csv'):
                         '公司招聘职位总数',
                         '公司类别',
                     ]
+                    scraped_num+=1      # track scraped number
+                    if scraped_num >= target_num:
+                        break
 
                 print("boss抓取到数据"+str(len(job_data))+"条")
+                # scraped_num += len(job_data)    
+
                 # 将数据保存到CSV文件
                 df = pd.DataFrame(job_data, columns=columns)
 
                 # 检查文件是否存在
-                if os.path.exists(filename):
-                    existing_df = pd.read_csv(filename, encoding='utf-8-sig')
+                if os.path.exists(csv_filename):
+                    existing_df = pd.read_csv(csv_filename, encoding='utf-8-sig')
 
                     # 从第二行开始插入新数据
                     result_df = pd.concat([df, existing_df[0:]], ignore_index=True)
 
                     # 将更新后的数据重新写入 CSV 文件
-                    result_df.to_csv(filename, index=False, encoding='utf-8-sig')
+                    result_df.to_csv(csv_filename, index=False, encoding='utf-8-sig')
                 else:
                     # 如果文件不存在，则创建新文件并写入表头
-                    df.to_csv(filename, index=False, encoding='utf-8-sig')
+                    df.to_csv(csv_filename, index=False, encoding='utf-8-sig')
                 next_page_button=page.query_selector_all('.options-pages')[0].query_selector_all('a')[-1]
                 if next_page_button.get_attribute('class')=="disabled":
                     break
                 else:
                     next_page_button.click()
+       
+        print(f"boss 共抓取到数据{scraped_num}条")
+
         # 关闭浏览器
         browser.close()
 if __name__ == '__main__':
-    scrape_jobs_boss()
+    scrape_jobs_boss(300)

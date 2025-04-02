@@ -8,12 +8,25 @@ import json
 
 storage_state_file = "account.json"
 
-def scrape_jobs_51job(csv_filename="jobs_51job.csv"):
+def scrape_jobs_51job(target_num):
+
+    # 用日期命名保存的文件 e.g. "jobs_51_0331.csv"
+    today_date = datetime.now().strftime("%m%d")
+    csv_filename=f"new_data/jobs_51_{today_date}.csv"
+
     file = open('搜索关键词.txt', 'r', encoding='utf-8')
     # 读取文件内容
     search_key_boss = file.read()
     # 关闭文件
     file.close()
+
+    page_index = 1      # track page number
+    scraped_num = 0     # track data scraped
+
+    # 微去重
+    past_data = pd.read_csv("merged_jobs_deduplicate_new.csv") # dir of all past data to deduplicate
+    past_data = past_data[past_data['平台'] == "51"]
+
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=False, executable_path="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",args=["--mute-audio"])
         # browser = p.chromium.launch(headless=True, executable_path="C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",args=["--headless=new","--mute-audio"])
@@ -24,7 +37,9 @@ def scrape_jobs_51job(csv_filename="jobs_51job.csv"):
             print("加载已保存的登录信息...")
             page = context.new_page()
             page.goto("https://we.51job.com/pc/search?jobArea=010000&keyword="+str(search_key_boss)+"")
-            for page_index in range(1,50):
+            
+            # for page_index in range(1,2):
+            while scraped_num < target_num:
                 nolist = page.query_selector_all('div[class="j_nolist"]')
                 if len(nolist)>0:
                     break
@@ -82,6 +97,18 @@ def scrape_jobs_51job(csv_filename="jobs_51job.csv"):
                             gongsihangye=job_biaoqian.query_selector_all('span[class="dc text-cut"]')[-1].text_content()
                         # new_page.close()
 
+                        # 验证是否重复
+                        # 通过以上信息
+                        if len(past_data[(past_data['职位名称'] == job_name_text) &
+                                     (past_data['具体地点'] == job_area_text) & 
+                                     (past_data['工资'] == salary_text) &
+                                     (past_data['公司名称'] == company_name_text) &
+                                     (past_data['其他标签'] == info_desc_text) &
+                                     (past_data['岗位要求'] == job_info_text) &
+                                     (past_data['公司标签'] == company_tag_list_text)]) >0:
+                            print(f"duplicated {job_name_text}, skipped...")
+                            continue
+
                         # 将数据添加到列表中，按照指定顺序
                         job_data.append([
                             job_area_text,  # 具体地点
@@ -111,6 +138,11 @@ def scrape_jobs_51job(csv_filename="jobs_51job.csv"):
                             '',
                             ''
                         ])
+
+                        scraped_num+=1      # track scraped number
+                        if scraped_num >= target_num:
+                            break
+
                     except Exception as e:
                         pass
 
@@ -143,7 +175,9 @@ def scrape_jobs_51job(csv_filename="jobs_51job.csv"):
                     '公司招聘职位总数',
                     '公司类别',
                 ]
+
                 print("51job抓取到数据"+str(len(job_data))+"条")
+                
                 # 将数据保存到CSV文件
                 df = pd.DataFrame(job_data, columns=columns)
 
@@ -163,8 +197,12 @@ def scrape_jobs_51job(csv_filename="jobs_51job.csv"):
                     page.query_selector_all('li.number')[4].click()
                 else:
                     page.query_selector_all('li.number')[page_index].click()
+                
+                page_index+=1   # next page
+
+        print(f"51job 共抓取到数据{scraped_num}条")
         # 关闭浏览器
         browser.close()
 
 if __name__ == '__main__':
-    scrape_jobs_51job()
+    scrape_jobs_51job(2000)
