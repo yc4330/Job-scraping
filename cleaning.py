@@ -320,3 +320,22 @@ merged_df["company_size"] = merged_df["公司人数"].apply(map_company_size)
 merged_df.to_csv(f"cleaned_jobs_{today_date}.csv", index=False)
 
 
+# %%
+# Define file paths
+all_jobs = os.path.join(current_directory, "cleaned_jobs.csv")
+new_file = os.path.join(current_directory, f"new_jobs_{today_date}.csv")
+
+# Check if the local file exists
+if os.path.exists(all_jobs):
+    # Read both files
+    local_df = pd.read_csv(all_jobs)
+    new_df = pd.read_csv(new_file)
+    
+    # Merge the dataframes and drop duplicates
+    df = pd.concat([local_df, new_df]).drop_duplicates(subset=['具体地点', '职位名称', '工资', '福利tag', '公司名称'])
+else:
+    # If the local file does not exist, use the new file as the base
+    df = pd.read_csv(new_file)
+
+# Save the merged dataframe back to the local file
+df.to_csv(all_jobs, index=False)
