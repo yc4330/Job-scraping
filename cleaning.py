@@ -59,9 +59,6 @@ for col in column_list:
 merged_df = merged_df[column_list]
 
 # %%
-print(merged_df.columns)
-
-# %%
 merged_df['Scraped_date'] = pd.to_datetime(merged_df['抓取时间'], errors='coerce').dt.date
 
 # %%
@@ -352,3 +349,4 @@ else:
 
 # Save the merged dataframe back to the local file
 df.to_csv(all_jobs, index=False)
+# %%
