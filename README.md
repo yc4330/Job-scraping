@@ -7,6 +7,8 @@
 | 店长     | 0      | '.job-list' not appearing; Could be problem with network or 登录信息? |
 | 赶集     | 500    |                                                                       |
 | 58       | 35     | scraped 330, only 35 are not repetitive                               |
+| 鱼泡       | 200     | error with scraping some detail pages (skipped)                     |
+
 
 Results are after primitive deduplicates. More data cleaning needed
 
