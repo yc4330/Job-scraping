@@ -8,11 +8,24 @@ import os
 # %%
 current_directory = os.getcwd()
 today_date = datetime.now().strftime("%m%d")
-log_file_path = os.path.join(current_directory, f"new_jobs_{today_date}.csv")
 
-# %%
-merged_df = pd.read_csv(log_file_path)
-# merged_df = pd.read_csv("new_jobs_0317.csv")
+# Define file paths
+all_jobs = os.path.join(current_directory, "cleaned_jobs.csv")
+new_file = os.path.join(current_directory, f"new_jobs_{today_date}.csv")
+
+# Check if the local file exists
+if os.path.exists(all_jobs):
+    # Read both files
+    local_df = pd.read_csv(all_jobs)
+    new_df = pd.read_csv(new_file)
+
+    # 找出 new_df 中不在 local_df 的那部分
+    subset_cols = ['具体地点', '职位名称', '工资', '福利tag', '公司名称']
+    merged = new_df.merge(local_df[subset_cols], on=subset_cols, how='left', indicator=True)
+    merged_df = merged[merged['_merge'] == 'left_only'].drop(columns=['_merge'])
+else:
+    # If the local file does not exist, use the new file as the base
+    merged_df = pd.read_csv(new_file)
 
 # %%
 column_list = ['平台', '发布时间', '抓取时间', 'Scraped_date', '具体地点', '工作地址', 'District', '工资',
@@ -323,7 +336,7 @@ merged_df.to_csv(f"cleaned_jobs_{today_date}.csv", index=False)
 # %%
 # Define file paths
 all_jobs = os.path.join(current_directory, "cleaned_jobs.csv")
-new_file = os.path.join(current_directory, f"new_jobs_{today_date}.csv")
+new_file = os.path.join(current_directory, f"cleaned_jobs_{today_date}.csv")
 
 # Check if the local file exists
 if os.path.exists(all_jobs):
